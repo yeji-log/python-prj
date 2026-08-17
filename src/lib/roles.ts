@@ -1,6 +1,13 @@
 import { Role } from "./types";
 
-const TEACHER_EMAILS = (process.env.NEXT_PUBLIC_TEACHER_EMAILS ?? "")
+// 배포 환경변수(NEXT_PUBLIC_TEACHER_EMAILS)가 비어있어도 교사 화면 접근이
+// 막히지 않도록 기본값을 둔다. firestore.rules의 isTeacher() 목록과 같이
+// 맞춰둬야 한다.
+const DEFAULT_TEACHER_EMAILS = "rhythm016@nyschool.co.kr";
+
+const TEACHER_EMAILS = (
+  process.env.NEXT_PUBLIC_TEACHER_EMAILS || DEFAULT_TEACHER_EMAILS
+)
   .split(",")
   .map((email) => email.trim().toLowerCase())
   .filter(Boolean);

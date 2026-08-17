@@ -2,13 +2,33 @@ import { getApp, getApps, initializeApp, FirebaseOptions } from "firebase/app";
 import { Auth, GoogleAuthProvider, getAuth } from "firebase/auth";
 import { Firestore, getFirestore } from "firebase/firestore";
 
+// Firebase 콘솔에서 발급한 이 프로젝트(python-prj-2494e)의 웹 앱 설정값.
+// apiKey 등은 비밀키가 아니라 클라이언트에 그대로 노출되는 공개 설정값이라
+// 코드에 기본값으로 넣어도 안전하다. 배포 환경변수(NEXT_PUBLIC_FIREBASE_*)를
+// 따로 등록하면 그 값이 우선 적용되어, 나중에 다른 Firebase 프로젝트로
+// 바꾸고 싶을 때(예: 운영/개발 분리)도 코드 수정 없이 대응할 수 있다.
+const DEFAULT_FIREBASE_CONFIG: FirebaseOptions = {
+  apiKey: "AIzaSyAANkoAoeRAiGZH5YoniwybejAqOHE_aic",
+  authDomain: "python-prj-2494e.firebaseapp.com",
+  projectId: "python-prj-2494e",
+  storageBucket: "python-prj-2494e.firebasestorage.app",
+  messagingSenderId: "249117652253",
+  appId: "1:249117652253:web:127080e347ebe644135df4",
+};
+
 const firebaseConfig: FirebaseOptions = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || DEFAULT_FIREBASE_CONFIG.apiKey,
+  authDomain:
+    process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || DEFAULT_FIREBASE_CONFIG.authDomain,
+  projectId:
+    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || DEFAULT_FIREBASE_CONFIG.projectId,
+  storageBucket:
+    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+    DEFAULT_FIREBASE_CONFIG.storageBucket,
+  messagingSenderId:
+    process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ||
+    DEFAULT_FIREBASE_CONFIG.messagingSenderId,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || DEFAULT_FIREBASE_CONFIG.appId,
 };
 
 export const firebaseConfigured = Boolean(
