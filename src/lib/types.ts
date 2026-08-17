@@ -26,6 +26,9 @@ export interface ConceptTemplate {
   questionBank: QuestionBank;
 }
 
+/** 이 개념이 어떻게 만들어졌는지 (교사 화면에 배지로 표시) */
+export type ConceptSource = "template" | "material" | "custom";
+
 export interface Concept {
   id: string;
   title: string;
@@ -33,8 +36,36 @@ export interface Concept {
   /** 설명이 붙여넣은 자료에서 왔는지, 기본 설명인지 */
   explanationSource: "material" | "default";
   questionBank: QuestionBank;
+  source?: ConceptSource;
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 export type ExtractResult =
   | { ok: true; concepts: Concept[] }
   | { ok: false; reason: "empty" | "no-match" };
+
+export type Role = "teacher" | "student";
+
+export interface UserProfile {
+  uid: string;
+  email: string;
+  displayName: string | null;
+  photoURL: string | null;
+  role: Role;
+  createdAt?: number;
+  lastLoginAt?: number;
+}
+
+export interface TestResultRecord {
+  id: string;
+  studentUid: string;
+  studentEmail: string;
+  studentName: string | null;
+  conceptId: string;
+  conceptTitle: string;
+  difficulty: Difficulty;
+  score: number;
+  total: number;
+  answeredAt: number;
+}

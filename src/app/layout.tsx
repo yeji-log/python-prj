@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import { ConceptsProvider } from "@/lib/ConceptsProvider";
+import { AuthProvider } from "@/lib/AuthProvider";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -16,7 +16,7 @@ const geistMono = localFont({
 
 export const metadata: Metadata = {
   title: "파이썬 개념 테스트",
-  description: "수업 자료로 파이썬 개념 학습 · 수준별 테스트를 만들어보세요.",
+  description: "구글 계정으로 로그인해 파이썬 개념을 학습하고 수준별 테스트를 풀어보세요.",
 };
 
 export default function RootLayout({
@@ -29,13 +29,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50 text-slate-900`}
       >
-        <ConceptsProvider>
-          <div className="min-h-screen flex flex-col">
-            <main className="flex-1 w-full max-w-2xl mx-auto px-4 py-8">
-              {children}
-            </main>
-          </div>
-        </ConceptsProvider>
+        <AuthProvider>
+          <div className="min-h-screen flex flex-col">{children}</div>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -1,0 +1,44 @@
+rules_version = '2';
+
+// Firebase 콘솔 > Firestore Database > 규칙(Rules) 탭에 이 내용을 그대로
+// 붙여넣고 "게시(Publish)" 하세요. (이 저장소의 .env.local의
+// NEXT_PUBLIC_TEACHER_EMAILS 와 같은 이메일 목록을 유지해주세요.)
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isTeacher() {
+      return isSignedIn() &&
+        request.auth.token.email in ['rhythm016@nyschool.co.kr'];
+    }
+
+    // 개념·문제: 로그인한 사람은 누구나 읽을 수 있고, 교사만 쓸 수 있다.
+    match /concepts/{conceptId} {
+      allow read: if isSignedIn();
+      allow write: if isTeacher();
+    }
+
+    // 사용자 프로필(역할 포함): 본인 또는 교사만 읽을 수 있고,
+    // 본인만 자신의 프로필을 쓸 수 있다(역할 상승 방지는 클라이언트 코드가
+    // 이메일 목록으로만 role을 계산하는 것으로 보강한다).
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isTeacher());
+      allow create, update: if isSignedIn() && request.auth.uid == uid;
+      allow delete: if isTeacher();
+    }
+
+    // 테스트 결과: 학생 본인이 자신의 uid로만 새로 만들 수 있고,
+    // 본인 또는 교사만 읽을 수 있다. 수정·삭제는 교사만 가능(학생 관리 화면에서
+    // 기록 삭제용).
+    match /results/{resultId} {
+      allow create: if isSignedIn() &&
+        request.resource.data.studentUid == request.auth.uid;
+      allow read: if isSignedIn() &&
+        (resource.data.studentUid == request.auth.uid || isTeacher());
+      allow update: if false;
+      allow delete: if isTeacher();
+    }
+  }
+}

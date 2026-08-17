@@ -1,131 +1,67 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useConcepts } from "@/lib/ConceptsProvider";
-import { ScreenHeader } from "@/components/ScreenHeader";
-import { parseNotebookToText } from "@/lib/parseNotebook";
+import { useAuth } from "@/lib/AuthProvider";
+import { PageShell } from "@/components/PageShell";
 
-export default function HomePage() {
+export default function LandingPage() {
   const router = useRouter();
-  const { generateConcepts, rawMaterial } = useConcepts();
-  const [text, setText] = useState(rawMaterial);
-  const [error, setError] = useState<string | null>(null);
-  const [fileNotice, setFileNotice] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { user, role, loading, error, signInWithGoogle } = useAuth();
 
-  const handleSubmit = () => {
-    setSubmitting(true);
-    const result = generateConcepts(text);
-    setSubmitting(false);
-
-    if (!result.ok) {
-      if (result.reason === "empty") {
-        setError("자료를 먼저 입력해주세요.");
-      } else {
-        setError(
-          "붙여넣은 자료에서 파이썬 개념을 찾지 못했어요. 코랩 실행 로그만 있는 경우처럼 개념 설명이 없는 자료는 인식할 수 없어요. 개념 설명이 담긴 자료를 다시 붙여넣어주세요."
-        );
-      }
-      return;
+  useEffect(() => {
+    if (!loading && user && role) {
+      router.replace(role === "teacher" ? "/teacher" : "/student");
     }
+  }, [loading, user, role, router]);
 
-    setError(null);
-    router.push("/concepts");
-  };
-
-  const handleFileSelect = async (file: File) => {
-    setFileNotice(null);
-
-    if (!file.name.toLowerCase().endsWith(".ipynb")) {
-      setError(".ipynb 파일만 업로드할 수 있어요.");
-      return;
-    }
-
-    let raw: string;
-    try {
-      raw = await file.text();
-    } catch {
-      setError("파일을 읽는 중 문제가 발생했어요. 다시 시도해주세요.");
-      return;
-    }
-
-    const result = parseNotebookToText(raw);
-    if (!result.ok) {
-      if (result.reason === "invalid-json" || result.reason === "invalid-notebook") {
-        setError("올바른 .ipynb 노트북 파일이 아니에요. 코랩·주피터에서 내려받은 파일인지 확인해주세요.");
-      } else {
-        setError("이 노트북에는 불러올 내용(셀)이 없어요.");
-      }
-      return;
-    }
-
-    setText((prev) => (prev.trim() ? `${prev}\n\n${result.text}` : result.text));
-    setError(null);
-    setFileNotice(`'${file.name}' 파일에서 자료를 불러왔어요. 필요하면 내용을 수정한 뒤 생성하세요.`);
-  };
+  if (loading || (user && role)) {
+    return (
+      <PageShell>
+        <p className="text-sm text-slate-400">불러오는 중...</p>
+      </PageShell>
+    );
+  }
 
   return (
-    <div>
-      <ScreenHeader
-        title="수업 자료로 개념 만들기"
-        subtitle="노션·코랩 내용을 복사해 붙여넣거나, .ipynb 파일을 업로드하세요"
-      />
+    <PageShell>
+      <div className="flex flex-col items-center text-center mt-16">
+        <h1 className="text-2xl font-bold text-slate-900">파이썬 개념 테스트</h1>
+        <p className="text-sm text-slate-500 mt-2 mb-8">
+          구글 계정으로 로그인하고 파이썬 개념을 학습·테스트해보세요.
+        </p>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".ipynb,application/x-ipynb+json,application/json"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleFileSelect(file);
-            e.target.value = "";
-          }}
-        />
         <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="mb-3 w-full rounded-lg border border-dashed border-slate-300 text-slate-600 text-sm font-medium py-3 hover:bg-slate-50 hover:border-slate-400 transition-colors"
+          onClick={signInWithGoogle}
+          className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
         >
-          📎 .ipynb 파일 업로드
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+            <path
+              fill="#4285F4"
+              d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"
+            />
+            <path
+              fill="#34A853"
+              d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.85.87-3.04.87-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"
+            />
+            <path
+              fill="#FBBC05"
+              d="M3.97 10.73A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.19.29-1.73V4.94H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.06l3.01-2.33z"
+            />
+            <path
+              fill="#EA4335"
+              d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.59-2.59C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.94l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"
+            />
+          </svg>
+          Google로 로그인
         </button>
 
-        {fileNotice && (
-          <p className="mb-3 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-            {fileNotice}
-          </p>
-        )}
-
-        <textarea
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value);
-            if (error) setError(null);
-          }}
-          placeholder={
-            "예)\n반복문(for)\nfor는 정해진 횟수만큼 코드를 반복 실행합니다...\n\n조건문(if)\n조건이 참일 때만 코드를 실행합니다..."
-          }
-          rows={12}
-          className="w-full resize-y rounded-lg border border-slate-300 p-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-
         {error && (
-          <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <p className="mt-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
             {error}
           </p>
         )}
-
-        <button
-          onClick={handleSubmit}
-          disabled={submitting}
-          className="mt-4 w-full rounded-lg bg-blue-600 text-white font-medium py-3 hover:bg-blue-700 disabled:opacity-50 transition-colors"
-        >
-          개념 생성하기
-        </button>
       </div>
-    </div>
+    </PageShell>
   );
 }

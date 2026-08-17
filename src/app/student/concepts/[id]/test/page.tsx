@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useConcepts } from "@/lib/ConceptsProvider";
+import { useFirestoreConcepts } from "@/lib/firestoreConcepts";
+import { useAuth } from "@/lib/AuthProvider";
+import { saveTestResult } from "@/lib/firestoreResults";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { CodeBlock } from "@/components/CodeBlock";
 import { buildShuffledQuiz, ShuffledQuestion } from "@/lib/quizUtils";
@@ -21,8 +23,9 @@ function progressKey(conceptId: string, level: Difficulty) {
 export default function TestPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { hydrated, getConcept } = useConcepts();
-  const concept = getConcept(params.id);
+  const { user } = useAuth();
+  const { concepts, loading } = useFirestoreConcepts();
+  const concept = concepts.find((c) => c.id === params.id);
   const levelParam = searchParams.get("level");
   const level = isDifficulty(levelParam) ? levelParam : null;
 
@@ -32,6 +35,7 @@ export default function TestPage({ params }: { params: { id: string } }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [resumedNotice, setResumedNotice] = useState<string | null>(null);
+  const [savingResult, setSavingResult] = useState(false);
 
   const startFreshQuiz = useCallback(
     (showResumeCheck: boolean) => {
@@ -69,23 +73,22 @@ export default function TestPage({ params }: { params: { id: string } }) {
     [concept, level]
   );
 
-  // 최초 마운트(= 진입/새로고침/뒤로가기로 다시 들어옴) 시 항상 새 문제로 시작
   useEffect(() => {
-    if (!hydrated || !concept || !level) return;
+    if (loading || !concept || !level) return;
     startFreshQuiz(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, concept?.id, level]);
+  }, [loading, concept?.id, level]);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (loading) return;
     if (!concept) {
-      router.replace("/concepts");
+      router.replace("/student");
       return;
     }
     if (!level) {
-      router.replace(`/concepts/${concept.id}/difficulty`);
+      router.replace(`/student/concepts/${concept.id}/difficulty`);
     }
-  }, [hydrated, concept, level, router]);
+  }, [loading, concept, level, router]);
 
   const score = useMemo(
     () =>
@@ -100,11 +103,10 @@ export default function TestPage({ params }: { params: { id: string } }) {
     [quiz, answers]
   );
 
-  if (!hydrated || !concept || !level) {
+  if (loading || !concept || !level) {
     return <p className="text-sm text-slate-400">불러오는 중...</p>;
   }
 
-  // 실패 케이스 3 방어: 유효한 문제가 하나도 없는 채로 테스트에 진입한 경우
   if (quiz.length === 0) {
     return (
       <div>
@@ -113,7 +115,7 @@ export default function TestPage({ params }: { params: { id: string } }) {
           이 난이도는 테스트를 진행할 수 없어요. 다른 난이도나 다른 개념을 선택해주세요.
         </p>
         <button
-          onClick={() => router.push(`/concepts/${concept.id}/difficulty`)}
+          onClick={() => router.push(`/student/concepts/${concept.id}/difficulty`)}
           className="mt-4 w-full rounded-lg bg-blue-600 text-white font-medium py-3 hover:bg-blue-700"
         >
           난이도 다시 선택
@@ -122,23 +124,48 @@ export default function TestPage({ params }: { params: { id: string } }) {
     );
   }
 
+  const finishQuiz = async (finalAnswers: (number | null)[]) => {
+    const key = progressKey(concept.id, level);
+    try {
+      window.sessionStorage.removeItem(key);
+    } catch {
+      // 무시
+    }
+    setPhase("result");
+
+    if (!user) return;
+    const finalScore = quiz.reduce(
+      (acc, q, i) => (finalAnswers[i] === q.displayAnswerIndex ? acc + 1 : acc),
+      0
+    );
+    setSavingResult(true);
+    try {
+      await saveTestResult({
+        user,
+        conceptId: concept.id,
+        conceptTitle: concept.title,
+        difficulty: level,
+        score: finalScore,
+        total: quiz.length,
+      });
+    } catch {
+      // 저장 실패해도 학생이 결과를 보는 데는 지장 없게 한다.
+    } finally {
+      setSavingResult(false);
+    }
+  };
+
   const handleSubmitCurrent = () => {
     if (selected === null) return;
     const nextAnswers = [...answers];
     nextAnswers[currentIndex] = selected;
     setAnswers(nextAnswers);
 
-    const answeredCount = nextAnswers.filter((a) => a !== null).length;
-    const key = progressKey(concept.id, level);
-
     if (currentIndex === quiz.length - 1) {
-      try {
-        window.sessionStorage.removeItem(key);
-      } catch {
-        // 무시
-      }
-      setPhase("result");
+      finishQuiz(nextAnswers);
     } else {
+      const answeredCount = nextAnswers.filter((a) => a !== null).length;
+      const key = progressKey(concept.id, level);
       try {
         window.sessionStorage.setItem(
           key,
@@ -159,7 +186,7 @@ export default function TestPage({ params }: { params: { id: string } }) {
         <ScreenHeader
           title={`${concept.title} 문제 ${currentIndex + 1}/${quiz.length}`}
           subtitle={`난이도: ${level}`}
-          backHref={`/concepts/${concept.id}/difficulty`}
+          backHref={`/student/concepts/${concept.id}/difficulty`}
           backLabel="난이도 다시 선택"
         />
 
@@ -220,7 +247,10 @@ export default function TestPage({ params }: { params: { id: string } }) {
           <p className="text-3xl font-bold text-slate-900">
             정답 {score} / {quiz.length}
           </p>
-          <p className="text-sm text-slate-500 mt-1">난이도: {level}</p>
+          <p className="text-sm text-slate-500 mt-1">
+            난이도: {level}
+            {savingResult && " · 결과 저장 중..."}
+          </p>
 
           {wrongIndices.length > 0 && (
             <button
@@ -240,7 +270,7 @@ export default function TestPage({ params }: { params: { id: string } }) {
             다시 풀기
           </button>
           <button
-            onClick={() => router.push("/concepts")}
+            onClick={() => router.push("/student")}
             className="rounded-lg bg-blue-600 text-white font-medium py-3 hover:bg-blue-700 transition-colors"
           >
             개념 목록
