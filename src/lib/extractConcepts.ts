@@ -5,6 +5,21 @@ const MAX_EXCERPT_LINES = 6;
 const MAX_EXCERPT_CHARS = 260;
 const MIN_EXCERPT_CHARS = 15;
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * 단순 문자열 포함(includes) 검사는 "int(" 가 "print(" 안에,
+ * ".dict(" 가 "predict(" 안에 들어있는 것처럼 단어 중간과 우연히 겹치는
+ * 오탐이 생긴다. 키워드 앞에 영문자/숫자/밑줄이 붙어있지 않을 때만
+ * 매칭되도록 해서 이런 오탐을 막는다.
+ */
+function keywordAppears(lowerText: string, lowerKeyword: string): boolean {
+  const pattern = new RegExp(`(?<![a-z0-9_])${escapeRegExp(lowerKeyword)}`, "i");
+  return pattern.test(lowerText);
+}
+
 /**
  * 원문에서 keywords 중 하나가 들어있는 줄을 찾아, 그 줄부터
  * 빈 줄이 나오거나 줄 수/글자 수 한도에 닿을 때까지 이어붙여
@@ -14,7 +29,7 @@ function findExcerpt(lines: string[], keywords: string[]): string | null {
   const lowerKeywords = keywords.map((k) => k.toLowerCase());
   const startIdx = lines.findIndex((line) => {
     const lower = line.toLowerCase();
-    return lowerKeywords.some((k) => lower.includes(k));
+    return lowerKeywords.some((k) => keywordAppears(lower, k));
   });
   if (startIdx === -1) return null;
 
@@ -50,7 +65,7 @@ export function extractConcepts(rawMaterial: string): ExtractResult {
 
   const concepts: Concept[] = [];
   for (const tpl of CONCEPT_TEMPLATES) {
-    const matched = tpl.keywords.some((k) => lower.includes(k.toLowerCase()));
+    const matched = tpl.keywords.some((k) => keywordAppears(lower, k.toLowerCase()));
     if (!matched) continue;
 
     const excerpt = findExcerpt(lines, tpl.keywords);
