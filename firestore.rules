@@ -11,7 +11,8 @@ service cloud.firestore {
 
     function isTeacher() {
       return isSignedIn() &&
-        request.auth.token.email in ['rhythm016@nyschool.co.kr'];
+        request.auth.token.email in
+          ['rhythm016@nyschool.co.kr', 'yeji.sdh@gmail.com'];
     }
 
     // 개념·문제: 로그인한 사람은 누구나 읽을 수 있고, 교사만 쓸 수 있다.
