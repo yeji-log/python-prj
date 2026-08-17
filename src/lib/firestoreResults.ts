@@ -14,7 +14,7 @@ import {
   where,
 } from "firebase/firestore";
 import { User } from "firebase/auth";
-import { db } from "./firebase";
+import { db, firebaseConfigured } from "./firebase";
 import { Difficulty, TestResultRecord, UserProfile } from "./types";
 
 const RESULTS_COLLECTION = "results";
@@ -67,6 +67,10 @@ export function useAllResults(limitCount = 200) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!firebaseConfigured) {
+      setLoading(false);
+      return;
+    }
     const q = query(collection(db, RESULTS_COLLECTION), orderBy("answeredAt", "desc"));
     const unsubscribe = onSnapshot(
       q,
@@ -91,7 +95,7 @@ export function useMyResults(uid: string | undefined) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!uid) {
+    if (!uid || !firebaseConfigured) {
       setResults([]);
       setLoading(false);
       return;
@@ -132,6 +136,10 @@ export function useStudents() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!firebaseConfigured) {
+      setLoading(false);
+      return;
+    }
     const q = query(collection(db, USERS_COLLECTION), where("role", "==", "student"));
     const unsubscribe = onSnapshot(
       q,

@@ -17,9 +17,12 @@ import {
   signOut,
 } from "firebase/auth";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
-import { auth, db, googleProvider } from "./firebase";
+import { auth, db, firebaseConfigured, googleProvider } from "./firebase";
 import { roleForEmail } from "./roles";
 import { Role } from "./types";
+
+const CONFIG_ERROR =
+  "Firebase 설정이 안 되어 있어요. 배포 환경변수(NEXT_PUBLIC_FIREBASE_*)를 확인해주세요.";
 
 interface AuthContextValue {
   user: User | null;
@@ -69,10 +72,14 @@ function upsertProfile(user: User) {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(firebaseConfigured);
+  const [error, setError] = useState<string | null>(
+    firebaseConfigured ? null : CONFIG_ERROR
+  );
 
   useEffect(() => {
+    if (!firebaseConfigured) return;
+
     // signInWithRedirect로 구글 로그인 페이지에 다녀온 직후라면 그 결과를 처리한다.
     getRedirectResult(auth).catch((e: unknown) => {
       const code = e instanceof FirebaseError ? e.code : undefined;
@@ -90,6 +97,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signInWithGoogle = async () => {
+    if (!firebaseConfigured) {
+      setError(CONFIG_ERROR);
+      return;
+    }
     setError(null);
     try {
       await signInWithPopup(auth, googleProvider);
@@ -117,6 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOutUser = async () => {
+    if (!firebaseConfigured) return;
     await signOut(auth);
   };
 

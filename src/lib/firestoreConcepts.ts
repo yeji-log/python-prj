@@ -12,7 +12,7 @@ import {
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, firebaseConfigured } from "./firebase";
 import { CONCEPT_TEMPLATES } from "./conceptData";
 import { extractConcepts } from "./extractConcepts";
 import { Concept, ExtractResult, QuestionBank } from "./types";
@@ -45,6 +45,10 @@ export function useFirestoreConcepts() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!firebaseConfigured) {
+      setLoading(false);
+      return;
+    }
     const q = query(collection(db, CONCEPTS_COLLECTION), orderBy("title"));
     const unsubscribe = onSnapshot(
       q,
