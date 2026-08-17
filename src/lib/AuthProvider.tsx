@@ -7,10 +7,13 @@ import {
   useMemo,
   useState,
 } from "react";
+import { FirebaseError } from "firebase/app";
 import {
   User,
+  getRedirectResult,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
 } from "firebase/auth";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
@@ -30,33 +33,58 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+// 팝업이 아예 막혀서 리다이렉트로 대체 진행해야 하는 경우
+const POPUP_FALLBACK_CODES = new Set([
+  "auth/popup-blocked",
+  "auth/operation-not-supported-in-this-environment",
+  "auth/cancelled-popup-request",
+]);
+
+function friendlyAuthError(code: string | undefined): string {
+  switch (code) {
+    case "auth/unauthorized-domain":
+      return "이 주소는 Firebase 콘솔 > Authentication > Settings > 승인된 도메인에 등록되어 있지 않아요. 관리자에게 문의해주세요.";
+    case "auth/network-request-failed":
+      return "네트워크 연결을 확인한 뒤 다시 시도해주세요.";
+    default:
+      return "로그인 중 문제가 발생했어요. 다시 시도해주세요.";
+  }
+}
+
+function upsertProfile(user: User) {
+  setDoc(
+    doc(db, "users", user.uid),
+    {
+      email: user.email ?? "",
+      displayName: user.displayName ?? null,
+      photoURL: user.photoURL ?? null,
+      role: roleForEmail(user.email),
+      lastLoginAt: serverTimestamp(),
+    },
+    { merge: true }
+  ).catch(() => {
+    // 무시: 프로필 저장 실패가 로그인 자체를 막지 않도록 한다.
+  });
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // signInWithRedirect로 구글 로그인 페이지에 다녀온 직후라면 그 결과를 처리한다.
+    getRedirectResult(auth).catch((e: unknown) => {
+      const code = e instanceof FirebaseError ? e.code : undefined;
+      if (code && code !== "auth/popup-closed-by-user") {
+        setError(friendlyAuthError(code));
+      }
+    });
+
     const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
       setUser(nextUser);
       setLoading(false);
-
-      if (nextUser) {
-        // 학생 관리 화면에서 볼 수 있도록 프로필을 저장해둔다.
-        // 실패해도(오프라인 등) 로그인 자체는 막지 않는다.
-        setDoc(
-          doc(db, "users", nextUser.uid),
-          {
-            email: nextUser.email ?? "",
-            displayName: nextUser.displayName ?? null,
-            photoURL: nextUser.photoURL ?? null,
-            role: roleForEmail(nextUser.email),
-            lastLoginAt: serverTimestamp(),
-          },
-          { merge: true }
-        ).catch(() => {
-          // 무시: 프로필 저장 실패가 로그인 자체를 막지 않도록 한다.
-        });
-      }
+      if (nextUser) upsertProfile(nextUser);
     });
     return unsubscribe;
   }, []);
@@ -66,9 +94,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "로그인 중 문제가 발생했어요. 다시 시도해주세요."
-      );
+      const code = e instanceof FirebaseError ? e.code : undefined;
+
+      if (code === "auth/popup-closed-by-user") {
+        // 사용자가 스스로 닫은 경우: 에러로 취급하지 않는다.
+        return;
+      }
+
+      if (code && POPUP_FALLBACK_CODES.has(code)) {
+        // 팝업이 브라우저 정책으로 막힌 경우 페이지 이동 방식으로 재시도한다.
+        try {
+          await signInWithRedirect(auth, googleProvider);
+        } catch (e2) {
+          const code2 = e2 instanceof FirebaseError ? e2.code : undefined;
+          setError(friendlyAuthError(code2));
+        }
+        return;
+      }
+
+      setError(friendlyAuthError(code));
     }
   };
 
